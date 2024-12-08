@@ -1,7 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser')
 const { verify, sign } = require('jsonwebtoken');
-const { Brand, Criteria, GenerasiProcessor, KapasitasRam, KapasitasRom, KecepatanRam, Laptop, Resolusi, TipeProcessor, User } = require('./models/index.js');
+const { Brand, Criteria, GenerasiProcessor, KapasitasRam, KapasitasRom, KecepatanRam, Laptop, Resolusi, TipeProcessor, User, NilaiAlternatifLaptop, sequelize} = require('./models/index.js');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 
@@ -98,8 +98,13 @@ app.post('/login', async (req, res) => {
     const accessToken = generateAccessToken({ user_id: user.user_id, username: user.username });
     const refreshToken = generateRefreshToken({ user_id: user.user_id, username: user.username });
 
+    const userInfo = {
+      user_id: user.user_id,
+      username: user.username,
+    };
 
-    res.json({ accessToken, refreshToken });
+
+    res.json({ accessToken, refreshToken, userInfo });
   } catch (err) {
     console.error('Error during login:', err);
     res.status(500).json({ error: 'Failed to login' });
@@ -199,9 +204,9 @@ app.post('/laptop', authenticateToken, async (req, res) => {
     kapasitas_ram,
     kecepatan_ram,
     resolusi,
-    tipe_processor,
-    generasi_processor,
+    processor,
   } = req.body;
+  
 
   if (
     !user_id ||
@@ -212,34 +217,58 @@ app.post('/laptop', authenticateToken, async (req, res) => {
     !kapasitas_ram ||
     !kecepatan_ram ||
     !resolusi ||
-    !tipe_processor ||
-    !generasi_processor
+    !processor
   ) {
     return res.status(400).json({ error: 'All fields are required!' });
   }
+  const transaction = await sequelize.transaction();
 
   try {
-    // Create the laptop
-    const laptop = await Laptop.create({
-      user_id,
-      nama_laptop,
-      harga,
-      berat,
-      kapasitas_rom,
-      kapasitas_ram,
-      kecepatan_ram,
-      resolusi,
-      tipe_processor,
-      generasi_processor,
-    });
+    // Insert into `Laptop` table
+    const laptop = await Laptop.create(
+      {
+        user_id,
+        nama_laptop,
+        harga: harga,
+        berat: berat,
+        kapasitas_rom: kapasitas_rom.label,
+        kapasitas_ram: kapasitas_ram.label,
+        kecepatan_ram: kecepatan_ram.label,
+        resolusi: resolusi.label,
+        processor: processor.label,
+      },
+      { transaction }
+    );
 
-    res.status(201).json(laptop);
-  } catch (err) {
-    console.error('Error creating laptop:', err);
-    res.status(500).json({ error: 'Failed to create laptop' });
+    // Insert into `NilaiAlternatifLaptop` table
+    await NilaiAlternatifLaptop.create(
+      {
+        id_laptop: laptop.id_laptop, // Link with the `Laptop` table
+        user_id,
+        nama_laptop,
+        harga: harga,
+        berat: berat,
+        kapasitas_rom: kapasitas_rom.value, // Use `value` instead of `label`
+        kapasitas_ram: kapasitas_ram.value,
+        kecepatan_ram: kecepatan_ram.value,
+        resolusi: resolusi.value,
+        tipe_processor: processor.value.tipe, // Use `tipe` for the processor
+        generasi_processor: processor.value.generasi, // Use `generasi` for the processor
+      },
+      { transaction }
+    );
+
+    // Commit transaction
+    await transaction.commit();
+    return res.status(201).json({
+      laptop,
+    }); // Return the created `Laptop` record
+  } catch (error) {
+    // Rollback transaction in case of an error
+    await transaction.rollback();
+    throw error;
   }
 });
-
 
 app.get('/criteria', async(_, res) => {
   try {
@@ -277,7 +306,7 @@ app.get('/processors', async (req, res) => {
   res.json(processedData);
 });
 
-function createGetRoute(model, route, filterKeys = []) {
+function createCriteriaRoute(model, route, filterKeys = []) {
   app.get(route, authenticateToken, async (req, res) => {
     try {
       const where = {};
@@ -288,13 +317,15 @@ function createGetRoute(model, route, filterKeys = []) {
           where[key] = req.query[key];
         }
       });
+      
 
       const results = Object.keys(where).length
         ? await model.findAll({ where }) // Apply filters if present
         : await model.findAll(); // Fetch all records if no filters
 
+
       if (results.length === 0) {
-        return res.status(404).json({ error: `No matching records found for ${route}` });
+        return res.json([]);
       }
 
       res.json(results);
@@ -306,15 +337,15 @@ function createGetRoute(model, route, filterKeys = []) {
 }
 
 // Create GET routes for all tables
-createGetRoute(Brand, '/brand', ['id']); // Filter by id
-createGetRoute(GenerasiProcessor, '/generasi_processor', ['id', 'brand_id']); // Filter by id or brand_id
-createGetRoute(KapasitasRam, '/kapasitas_ram', ['id']); // Filter by id
-createGetRoute(KapasitasRom, '/kapasitas_rom', ['id']); // Filter by id
-createGetRoute(KecepatanRam, '/kecepatan_ram', ['id']); // Filter by id
-createGetRoute(Laptop, '/laptop', ['id_laptop', 'user_id']); // Filter by id_laptop or user_id
-createGetRoute(Resolusi, '/resolusi', ['id']); // Filter by id
-createGetRoute(TipeProcessor, '/tipe_processor', ['id', 'brand_id']); // Filter by id or brand_id
-createGetRoute(User, '/users', ['user_id', 'username']); // Filter by user_id or username
+createCriteriaRoute(Brand, '/brand'); // Filter by id or brand_id
+createCriteriaRoute(GenerasiProcessor, '/generasi-processor'); // Filter by id or brand_id
+createCriteriaRoute(KapasitasRam, '/kapasitas-ram'); // Filter by id
+createCriteriaRoute(KapasitasRom, '/kapasitas-rom'); // Filter by id
+createCriteriaRoute(KecepatanRam, '/kecepatan-ram'); // Filter by id
+createCriteriaRoute(Resolusi, '/resolusi'); // Filter by id
+createCriteriaRoute(TipeProcessor, '/tipe-processor'); // Filter by id or brand_id
+createCriteriaRoute(Laptop, '/laptop', ['user_id']);
+createCriteriaRoute(NilaiAlternatifLaptop, '/nilai-alternatif-laptop', ['user_id']);
 
 
 // // GET API for each table

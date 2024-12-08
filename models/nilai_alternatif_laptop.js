@@ -1,17 +1,18 @@
 'use strict';
 module.exports = (sequelize, DataTypes) => {
-  const Laptop = sequelize.define('Laptop', {
+  const NilaiAlternatifLaptop = sequelize.define('NilaiAlternatifLaptop', {
     id_laptop: {
       type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
+      allowNull: false,
+      primaryKey: true
     },
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      primaryKey: true
     },
     nama_laptop: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(100),
       allowNull: false,
     },
     harga: {
@@ -23,29 +24,34 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     kapasitas_rom: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     kapasitas_ram: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     kecepatan_ram: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     resolusi: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
-    processor: {
-      type: DataTypes.STRING,
-      allowNull: false
-    }
+    tipe_processor: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    generasi_processor: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   }, {
-    tableName: 'laptop',
+    tableName: 'nilai_alternatif_laptop',
     timestamps: false,
+    primaryKey: false,
   });
 
-  return Laptop;
+  return NilaiAlternatifLaptop;
 };
