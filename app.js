@@ -9,10 +9,10 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors({
-  origin: 'http://localhost:5173', // Replace with your frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
-  allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
-  credentials: true, // Allow cookies if needed
+  origin: 'http://localhost:5173', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], 
+  allowedHeaders: ['Content-Type', 'Authorization'], 
+  credentials: true,
 }));
 
 app.use(bodyParser.json());
@@ -20,7 +20,6 @@ app.use(bodyParser.json());
 const SECRET_KEY = 'kelompok_3';
 const REFRESH_SECRET_KEY = "kelompok_3"
 
-// Middleware to verify JWT token
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
 
@@ -28,7 +27,7 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access denied, token missing!' });
   }
 
-  const token = authHeader.split(' ')[1]; // Extract token after 'Bearer'
+  const token = authHeader.split(' ')[1]; 
   if (!token) {
     return res.status(401).json({ error: 'Access denied, token missing!' });
   }
@@ -37,7 +36,7 @@ function authenticateToken(req, res, next) {
     if (err) {
       return res.status(403).json({ error: 'Invalid token!' });
     }
-    req.user = user; // Save decoded token payload in request
+    req.user = user; 
     next();
   });
 }
@@ -54,7 +53,7 @@ app.post('/token', (req, res) => {
   }
 
   try {
-    const user = verify(token, REFRESH_SECRET_KEY); // Verify refresh token
+    const user = verify(token, REFRESH_SECRET_KEY);
     const accessToken = generateAccessToken({ user_id: user.user_id, username: user.username });
     res.json({ accessToken });
   } catch (err) {
@@ -63,17 +62,14 @@ app.post('/token', (req, res) => {
   }
 });
 
-// Utility function to generate access tokens
 function generateAccessToken(user) {
-  return sign(user, SECRET_KEY, { expiresIn: '1d' }); // Access token expires in 1 day
+  return sign(user, SECRET_KEY, { expiresIn: '1d' });
 }
 
-// Utility function to generate refresh tokens
 function generateRefreshToken(user) {
-  return sign(user, REFRESH_SECRET_KEY, { expiresIn: '7d' }); // Refresh token expires in 7 days
+  return sign(user, REFRESH_SECRET_KEY, { expiresIn: '7d' }); 
 }
 
-// Route to generate JWT token (for testing purposes)
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
@@ -82,19 +78,16 @@ app.post('/login', async (req, res) => {
   }
 
   try {
-    // Find user by username
     const user = await User.findOne({ where: { username } });
     if (!user) {
       return res.status(404).json({ error: 'Invalid username or password!' });
     }
 
-    // Compare hashed password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid username or password!' });
     }
 
-    // Generate JWT token
     const accessToken = generateAccessToken({ user_id: user.user_id, username: user.username });
     const refreshToken = generateRefreshToken({ user_id: user.user_id, username: user.username });
 
@@ -123,7 +116,6 @@ app.get('/check-username', async (req, res) => {
   }
 })
 
-// POST API for creating a new user with hashed password
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
 
@@ -134,10 +126,8 @@ app.post('/register', async (req, res) => {
   
 
   try {
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create the user
     const user = await User.create({
       username,
       password: hashedPassword,
@@ -150,11 +140,9 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Update Password
-// PUT API to update user password
 app.put('/users/change-password', authenticateToken, async (req, res) => {
-  const { user_id } = req.query; // Retrieve user ID from the route parameter
-  const { oldPassword, newPassword } = req.body; // Retrieve new password from the request body
+  const { user_id } = req.query;
+  const { oldPassword, newPassword } = req.body;
 
   if (parseInt(user_id) !== req.user.user_id) {
     return res.status(403).json({ error: 'You are not authorized to change this password!' });
@@ -165,23 +153,19 @@ app.put('/users/change-password', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Find the user by ID
     const user = await User.findByPk(user_id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Validate the old password
     const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
     if (!isOldPasswordValid) {
       return res.status(401).json({ error: 'Invalid old password!' });
     }
 
-    // Hash the new password
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update the password in the database
     user.password = hashedNewPassword;
     await user.save();
 
@@ -193,7 +177,6 @@ app.put('/users/change-password', authenticateToken, async (req, res) => {
 });
 
 
-// POST API for creating a new laptop
 app.post('/laptop', authenticateToken, async (req, res) => {
   const {
     user_id,
@@ -224,7 +207,6 @@ app.post('/laptop', authenticateToken, async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    // Insert into `Laptop` table
     const laptop = await Laptop.create(
       {
         user_id,
@@ -240,31 +222,29 @@ app.post('/laptop', authenticateToken, async (req, res) => {
       { transaction }
     );
 
-    // Insert into `NilaiAlternatifLaptop` table
     await NilaiAlternatifLaptop.create(
       {
-        id_laptop: laptop.id_laptop, // Link with the `Laptop` table
+        id_laptop: laptop.id_laptop,
         user_id,
         nama_laptop,
         harga: harga,
         berat: berat,
-        kapasitas_rom: kapasitas_rom.value, // Use `value` instead of `label`
+        kapasitas_rom: kapasitas_rom.value, 
         kapasitas_ram: kapasitas_ram.value,
         kecepatan_ram: kecepatan_ram.value,
         resolusi: resolusi.value,
-        tipe_processor: processor.value.tipe, // Use `tipe` for the processor
-        generasi_processor: processor.value.generasi, // Use `generasi` for the processor
+        tipe_processor: processor.value.tipe, 
+        generasi_processor: processor.value.generasi,
       },
       { transaction }
     );
 
-    // Commit transaction
     await transaction.commit();
+
     return res.status(201).json({
       laptop,
-    }); // Return the created `Laptop` record
+    });
   } catch (error) {
-    // Rollback transaction in case of an error
     await transaction.rollback();
     throw error;
   }
@@ -280,26 +260,22 @@ app.get('/criteria', async(_, res) => {
   }
 })
 
-// Get all processors with dynamic rescaled_value
-app.get('/processors', async (req, res) => {
+app.get('/processors', async (_, res) => {
   const processors = await GenerasiProcessor.findAll();
 
-  // Get ranges for scaling
-  const maxIntel = await GenerasiProcessor.max('value', { where: { brand_id: 1 } }); // Max value for Intel
-  const maxAMD = await GenerasiProcessor.max('value', { where: { brand_id: 2 } });   // Max value for AMD
+  const maxIntel = await GenerasiProcessor.max('value', { where: { brand_id: 1 } }); 
+  const maxAMD = await GenerasiProcessor.max('value', { where: { brand_id: 2 } });
 
-  // Map over processors to calculate rescaled_value dynamically
   const processedData = processors.map(proc => {
     let rescaled_value = proc.value;
 
-    // Apply rescaling for AMD
     if (proc.brand_id === 2) {
       rescaled_value = ((proc.value - 1) / (maxAMD - 1)) * (maxIntel - 1) + 1;
     }
 
     return {
       ...proc.toJSON(),
-      rescaled_value, // Add dynamic rescaled_value
+      rescaled_value, 
     };
   });
 
@@ -311,7 +287,6 @@ function createCriteriaRoute(model, route, filterKeys = []) {
     try {
       const where = {};
 
-      // Build the `where` object based on query parameters
       filterKeys.forEach((key) => {
         if (req.query[key]) {
           where[key] = req.query[key];
@@ -336,84 +311,16 @@ function createCriteriaRoute(model, route, filterKeys = []) {
   });
 }
 
-// Create GET routes for all tables
-createCriteriaRoute(Brand, '/brand'); // Filter by id or brand_id
-createCriteriaRoute(GenerasiProcessor, '/generasi-processor'); // Filter by id or brand_id
-createCriteriaRoute(KapasitasRam, '/kapasitas-ram'); // Filter by id
-createCriteriaRoute(KapasitasRom, '/kapasitas-rom'); // Filter by id
-createCriteriaRoute(KecepatanRam, '/kecepatan-ram'); // Filter by id
-createCriteriaRoute(Resolusi, '/resolusi'); // Filter by id
-createCriteriaRoute(TipeProcessor, '/tipe-processor'); // Filter by id or brand_id
+createCriteriaRoute(Brand, '/brand'); 
+createCriteriaRoute(GenerasiProcessor, '/generasi-processor'); 
+createCriteriaRoute(KapasitasRam, '/kapasitas-ram'); 
+createCriteriaRoute(KapasitasRom, '/kapasitas-rom'); 
+createCriteriaRoute(KecepatanRam, '/kecepatan-ram'); 
+createCriteriaRoute(Resolusi, '/resolusi'); 
+createCriteriaRoute(TipeProcessor, '/tipe-processor');
 createCriteriaRoute(Laptop, '/laptop', ['user_id']);
 createCriteriaRoute(NilaiAlternatifLaptop, '/nilai-alternatif-laptop', ['user_id']);
 
-
-// // GET API for each table
-// app.get('/brand', authenticateToken, async (_, res) => {
-//   try {
-//     const brands = await Brand.findAll();
-//     res.json(brands);
-//   } catch (err) {
-//     console.error('Error fetching brand:', err);
-//     res.status(500).json({ error: 'Failed to fetch brand data' });
-//   }
-// });
-
-// app.get('/criteria', authenticateToken, async (_, res) => {
-//   try {
-//     const criteria = await Criteria.findAll();
-//     res.json(criteria);
-//   } catch (err) {
-//     console.error('Error fetching criteria:', err);
-//     res.status(500).json({ error: 'Failed to fetch criteria data' });
-//   }
-// });
-
-
-// // GET specific generasi_processor by ID
-// app.get('/generasi_processor', authenticateToken, async (req, res) => {
-//   const { id, brand_id } = req.query; // Retrieve query parameters
-//   try {
-//     let res;
-
-//     if (id || brand_id) {
-//       // If `id` or `brand_id` is provided, apply filtering
-//       const where = {};
-//       if (id) where.id = id; // Filter by id if provided
-//       if (brand_id) where.brand_id = brand_id; // Filter by brand_id if provided
-
-//       res = await GenerasiProcessor.findAll({ where });
-//       if (res.length === 0) {
-//         return res.status(404).json({ error: 'No matching generasi_processor found' });
-//       }
-//     } else {
-//       // If no filters, fetch all records
-//       res = await GenerasiProcessor.findAll();
-//     }
-
-//     res.json(res);
-//   } catch (err) {
-//     console.error('Error fetching generasi_processor:', err);
-//     res.status(500).json({ error: 'Failed to fetch generasi_processor data' });
-//   }
-// });
-
-// // GET specific laptop by ID
-// app.get('/laptop/:id', authenticateToken, async (req, res) => {
-//   const { id } = req.params;
-//   try {
-//     const laptop = await Laptop.findByPk(id);
-//     if (!laptop) {
-//       return res.status(404).json({ error: 'Laptop not found' });
-//     }
-//     res.json(laptop);
-//   } catch (err) {
-//     console.error('Error fetching laptop:', err);
-//     res.status(500).json({ error: 'Failed to fetch laptop data' });
-//   }
-// });
-
-// Start the server
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
