@@ -48,14 +48,15 @@ app.post('/token', (req, res) => {
     return res.status(401).json({ error: 'Refresh token is required!' });
   }
 
-  if (!refreshTokens.includes(token)) {
-    return res.status(403).json({ error: 'Invalid refresh token!' });
-  }
 
   try {
     const user = verify(token, REFRESH_SECRET_KEY);
+    const userInfo = {
+      user_id: user.user_id,
+      username: user.username,
+    };
     const accessToken = generateAccessToken({ user_id: user.user_id, username: user.username });
-    res.json({ accessToken });
+    res.json({ accessToken, userInfo });
   } catch (err) {
     console.error('Error refreshing token:', err);
     res.status(403).json({ error: 'Invalid or expired refresh token!' });
