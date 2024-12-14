@@ -1,0 +1,29 @@
+services:
+  choice-be:
+    container_name: choice-be
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: choice
+      DB_USER: root
+      DB_PASSWORD: 
+    depends_on:
+      - db
+
+  db:
+    container_name: choice-db
+    image: mysql:8.0
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: choice
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 
