@@ -6,16 +6,19 @@ const Sequelize = require('sequelize');
 const process = require('process');
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.json')[env];
+const config = require(path.join(__dirname, '/../config/config.js'))[env]; // Mengambil dari config.js
 const db = {};
 
 let sequelize;
 if (config.use_env_variable) {
+  // Jika environment variable digunakan
   sequelize = new Sequelize(process.env[config.use_env_variable], config);
 } else {
+  // Jika menggunakan konfigurasi eksplisit dari config.js
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
+// Membaca semua file model di direktori ini
 fs
   .readdirSync(__dirname)
   .filter(file => {
@@ -31,12 +34,14 @@ fs
     db[model.name] = model;
   });
 
+// Menyambungkan semua relasi model (jika ada)
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }
 });
 
+// Menyimpan instance Sequelize ke objek db
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
