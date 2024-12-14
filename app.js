@@ -9,7 +9,7 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://backend.sawchoice.site', 'https://sawchoice.site'], 
+  origin: ['http://localhost:5173', 'http://localhost:4173', 'https://backend.sawchoice.site', 'https://sawchoice.site'], 
   methods: ['GET', 'POST', 'PUT', 'DELETE'], 
   allowedHeaders: ['Content-Type', 'Authorization'], 
   credentials: true,
