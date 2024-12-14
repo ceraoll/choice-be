@@ -1,7 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser')
 const { verify, sign } = require('jsonwebtoken');
-const { Brand, Criteria, GenerasiProcessor, KapasitasRam, KapasitasRom, KecepatanRam, Laptop, Resolusi, TipeProcessor, User, NilaiAlternatifLaptop, sequelize} = require('./models/index.js');
+const { Brand, Criteria, GenerasiProcessor, KapasitasRam, KapasitasRom, KecepatanRam, Laptop, Resolusi, TipeProcessor, Users, NilaiAlternatifLaptop, sequelize} = require('./models/index.js');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 
@@ -9,7 +9,7 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors({
-  origin: 'http://localhost:5173', 
+  origin: ['http://localhost:5173', 'https://backend.sawchoice.site', 'https://sawchoice.site'], 
   methods: ['GET', 'POST', 'PUT', 'DELETE'], 
   allowedHeaders: ['Content-Type', 'Authorization'], 
   credentials: true,
@@ -44,7 +44,7 @@ function authenticateToken(req, res, next) {
 app.post('/token', (req, res) => {
   const { token } = req.body;
 
-  if (!token) {
+  if (!token || typeof token !== 'string') {
     return res.status(401).json({ error: 'Refresh token is required!' });
   }
 
@@ -74,18 +74,18 @@ app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required!' });
+    return res.status(400).json({ error: 'Masukan username atau Password!' });
   }
 
   try {
-    const user = await User.findOne({ where: { username } });
+    const user = await Users.findOne({ where: { username } });
     if (!user) {
-      return res.status(404).json({ error: 'Invalid username or password!' });
+      return res.status(403).json({ error: 'Invalid credentials!' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid username or password!' });
+      return res.status(403).json({ error: 'Invalid credentials!' });
     }
 
     const accessToken = generateAccessToken({ user_id: user.user_id, username: user.username });
@@ -99,15 +99,13 @@ app.post('/login', async (req, res) => {
 
     res.json({ accessToken, refreshToken, userInfo });
   } catch (err) {
-    console.error('Error during login:', err);
     res.status(500).json({ error: 'Failed to login' });
   }
 });
 
 app.get('/check-username', async (req, res) => {
   const { username } = req.query;
-  console.log(username)
-  const isAvailable = !await User.findOne({ where: { username } });
+  const isAvailable = !await Users.findOne({ where: { username } });
 
   if (isAvailable) {
     res.status(200).json({ isAvailable: true });
@@ -124,11 +122,10 @@ app.post('/register', async (req, res) => {
   }
 
   
-
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User.create({
+    const user = await Users.create({
       username,
       password: hashedPassword,
     });
@@ -153,7 +150,7 @@ app.put('/users/change-password', authenticateToken, async (req, res) => {
   }
 
   try {
-    const user = await User.findByPk(user_id);
+    const user = await Users.findByPk(user_id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -244,23 +241,149 @@ app.post('/laptop', authenticateToken, async (req, res) => {
     return res.status(201).json({
       laptop,
     });
-  } catch (error) {
+  } catch (err) {
     await transaction.rollback();
-    throw error;
+    return err;
   }
 });
+
+app.get('/laptop/:id_laptop', authenticateToken, async(req, res) => {
+  const { id_laptop } = req.params;
+
+  try {
+    const data = await Laptop.findOne({ where: { id_laptop } });
+    return res.status(200).json(data)
+  } catch (err) {
+    console.error('Error fetching id_laptop', err);
+    return res.status(500).json({ error: 'An error occurred while fetching laptop by id.' });
+  }
+
+});
+
+app.put('/laptop/:id_laptop/update', authenticateToken, async (req, res) => {
+  const { id_laptop } = req.params; 
+  const {
+    nama_laptop,
+    harga,
+    berat,
+    kapasitas_rom,
+    kapasitas_ram,
+    kecepatan_ram,
+    resolusi,
+    processor,
+  } = req.body; 
+
+  if (
+    !id_laptop ||
+    !nama_laptop ||
+    !harga ||
+    !berat ||
+    !kapasitas_rom ||
+    !kapasitas_ram ||
+    !kecepatan_ram ||
+    !resolusi ||
+    !processor
+  ) {
+    return res.status(400).json({ error: 'All fields are required!' });
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const laptop = await Laptop.findOne({ where: { id_laptop }, transaction });
+    if (!laptop) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Laptop not found!' });
+    }
+
+    await Laptop.update(
+      {
+        nama_laptop,
+        harga: harga,
+        berat: berat,
+        kapasitas_rom: kapasitas_rom.label,
+        kapasitas_ram: kapasitas_ram.label,
+        kecepatan_ram: kecepatan_ram.label,
+        resolusi: resolusi.label,
+        processor: processor.label,
+      },
+      {
+        where: { id_laptop },
+        transaction, 
+      }
+    );
+
+    await NilaiAlternatifLaptop.update(
+      {
+        nama_laptop,
+        harga: harga,
+        berat: berat,
+        kapasitas_rom: kapasitas_rom.value, 
+        kapasitas_ram: kapasitas_ram.value,
+        kecepatan_ram: kecepatan_ram.value,
+        resolusi: resolusi.value,
+        tipe_processor: processor.value.tipe, 
+        generasi_processor: processor.value.generasi,
+      },
+      {
+        where: { id_laptop },
+        transaction, 
+      }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      message: 'Laptop and its alternative values updated successfully!',
+    });
+  } catch (err) {
+    await transaction.rollback();
+    console.error('Error updating laptop and alternative values:', err);
+    return res.status(500).json({ error: 'An error occurred while updating the laptop and its alternative values.' });
+  }
+});
+
+
+app.delete('/laptop/:id_laptop/delete', authenticateToken, async (req, res) => {
+  const { id_laptop } = req.params;
+
+  if (!id_laptop) {
+    return res.status(400).json({ error: 'Laptop ID is required!' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    const laptop = await Laptop.findOne({ where: { id_laptop } });
+    if (!laptop) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Laptop not found!' });
+    }
+
+    await Laptop.destroy(
+      { where: { id_laptop } },
+      { transaction }
+    );
+
+    await transaction.commit();
+    return res.status(200).json({ message: 'Laptop deleted successfully!' });
+  } catch (err) {
+    await transaction.rollback();
+    console.error(err);
+    return res.status(500).json({ error: 'An error occurred while deleting the laptop.' });
+  }
+});
+
 
 app.get('/criteria', async(_, res) => {
   try {
     const criteria = await Criteria.findAll();
     res.json(criteria);
   } catch (err) {
-    console.error('Error fetching criteria:', err);
     res.status(500).json({ error: 'Failed to fetch criteria data' });
   }
-})
+});
 
-app.get('/processors', async (_, res) => {
+app.get('/processors', authenticateToken, async (_, res) => {
   const processors = await GenerasiProcessor.findAll();
 
   const maxIntel = await GenerasiProcessor.max('value', { where: { brand_id: 1 } }); 
@@ -319,6 +442,7 @@ createCriteriaRoute(KecepatanRam, '/kecepatan-ram');
 createCriteriaRoute(Resolusi, '/resolusi'); 
 createCriteriaRoute(TipeProcessor, '/tipe-processor');
 createCriteriaRoute(Laptop, '/laptop', ['user_id']);
+createCriteriaRoute(Users, '/userinfo');
 createCriteriaRoute(NilaiAlternatifLaptop, '/nilai-alternatif-laptop', ['user_id']);
 
 const PORT = 3000;
